@@ -1,8 +1,8 @@
 /*
  * $URL$
- * 
- * $Revision$ 
- * 
+ *
+ * $Revision$
+ *
  * $LastChangedDate$
  *
  * $LastChangedBy$
@@ -18,11 +18,13 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 package jmxsh;
 
 import org.apache.commons.cli.*;
+import javax.management.MBeanAttributeInfo;
+import java.util.ArrayList;
 //import org.apache.log4j.Logger;
 import tcl.lang.*;
 
@@ -75,14 +77,14 @@ class GetCmd implements Command {
 	);
     }
 
-    private CommandLine parseCommandLine(TclObject argv[]) 
+    private CommandLine parseCommandLine(TclObject argv[])
 	throws ParseException {
 
 	String[] args = new String[argv.length - 1];
-	    
+
 	for(int i = 0; i < argv.length - 1; i++)
 	    args[i] = argv[i + 1].toString();
-	    
+
 	CommandLine cl = (new PosixParser()).parse(this.opts, args);
 	return cl;
     }
@@ -99,7 +101,7 @@ class GetCmd implements Command {
 	    this.mbean  = interp.getVar("MBEAN",  TCL.GLOBAL_ONLY).toString();
 	    this.attrop = interp.getVar("ATTROP", TCL.GLOBAL_ONLY).toString();
 	}
-	catch (TclException e) { 
+	catch (TclException e) {
 	    /* If one doesn't exist, it will just be null. */
 	}
 
@@ -112,11 +114,11 @@ class GetCmd implements Command {
 	    CommandLine cl = parseCommandLine(argv);
 	    String args[] = cl.getArgs();
 	    String attribute = null;
-	    
+
 	    if (cl.hasOption("help")) {
 		new HelpFormatter().printHelp (
 		    "jmx_get [-?] [-n] [-s server] [-m mbean] [ATTRIBUTE]",
-		    "======================================================================", 
+		    "======================================================================",
 		    this.opts,
 		    "======================================================================",
 		    false
@@ -153,16 +155,31 @@ class GetCmd implements Command {
 		throw new TclException(interp, "No mbean specified; please set MBEAN variable or use -m option.", TCL.ERROR);
 	    }
 
-	    if (attribute == null) {
-		throw new TclException(interp, "No attribute specified; please set ATTROP variable or add it to the command line.", TCL.ERROR);
-	    }
+	//Fixed the bug cannot listing the jmx attributes in details
 
-	    if (cl.hasOption("noconvert")) {
-		String result = Utils.java2tcl(Jmx.getInstance().getAttribute(this.server, this.mbean, attribute));
-		interp.setResult(result);
-	    } else {
-		interp.setResult(Jmx.getInstance().getAttribute(this.server, this.mbean, attribute).toString());
-	    }
+   if(attribute != null){
+     if (cl.hasOption("noconvert")) {
+       String result = Utils.java2tcl(Jmx.getInstance().getAttribute(this.server, this.mbean, attribute));
+       interp.setResult(result);
+       }else{
+       interp.setResult(Jmx.getInstance().getAttribute(this.server, this.mbean, attribute).toString());
+     }
+   }else{
+     if (cl.hasOption("noconvert")) {
+       throw new TclException(interp, "No attribute specified with the -n or -noconvert options; please set ATTROP variable or add it to the command line.", TCL.ERROR);
+     }else{
+       MBeanAttributeInfo[] attrArray = Jmx.getInstance().getAttributes(this.server, this.mbean);
+       ArrayList <String> attrList = new ArrayList <String> ();
+       for (MBeanAttributeInfo attr:attrArray){
+         attrList.add(attr.getType()+":"+attr.getName());
+       }
+       String[] emptyStringArray = new String[0];
+       TclObject result = Utils.array2list(attrList.toArray(emptyStringArray));
+       interp.setResult(result);
+     }
+   }
+
+
 	}
 	catch(ParseException e)	    {
 	    throw new TclException(interp, e.getMessage(), 1);
